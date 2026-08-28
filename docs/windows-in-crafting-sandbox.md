@@ -17,7 +17,6 @@ It is the Windows counterpart to
 | An EC2 key pair | Windows encrypts the Administrator password with it | Must be RSA in PKCS#1 format |
 | The key pair's `.pem` as an org secret | Terraform decrypts the password with it | See [Key pair](#key-pair) |
 | An AWS config file as an org secret | Gives the sandbox its AWS identity | See [AWS credentials](#aws-credentials) |
-| A container registry your sandboxes can pull from | Hosting the RDP image | See [Building the RDP image](#building-the-rdp-image) |
 | Your Crafting cluster's egress CIDR | Locking down the VM's firewall | See [Finding your egress CIDR](#finding-your-egress-cidr) |
 
 A VPC with a public subnet is also required. The subnet must assign public IPs
@@ -30,12 +29,14 @@ public address.
 
 1. Fork this repo. The sandbox template checks it out, so it must be reachable
    from your org.
-2. Build and publish the RDP image, then put its tag in the template. See
-   [Building the RDP image](#building-the-rdp-image).
-3. Store your key pair PEM and AWS config as org secrets.
-4. Fill in every `# <-- REPLACE` in [`.sandbox/template.yaml`](../.sandbox/template.yaml):
+2. Store your key pair PEM and AWS config as org secrets.
+3. Fill in every `# <-- REPLACE` in [`.sandbox/template.yaml`](../.sandbox/template.yaml):
    VPC, subnet, key pair name, secret paths, and your egress CIDR.
-5. Create a sandbox from the template.
+4. Create a sandbox from the template.
+
+The RDP tunnel image is already published at
+`us-docker.pkg.dev/crafting-eng/pubdev/ec2-windows-guacamole:latest` and does
+not need to be rebuilt.
 
 First creation takes roughly 5-10 minutes: most of it is Windows booting and
 running first-boot setup.
@@ -104,22 +105,24 @@ Nothing should hard-code the address; read it from the resource state instead.
 
 ---
 
-## Building the RDP image
+## The RDP image
 
 The image is guacd plus a small Jetty websocket tunnel in a single container.
 There is no Guacamole web application and no MySQL: the tunnel serves its own
 client page and takes its connection settings over a tiny HTTP API.
 
+Templates ship pointing at:
+
+```
+us-docker.pkg.dev/crafting-eng/pubdev/ec2-windows-guacamole:latest
+```
+
+Rebuilding is optional. If you want your own copy:
+
 ```bash
 docker build -t YOUR_REGISTRY/ec2-windows-guacamole:latest .
 docker push YOUR_REGISTRY/ec2-windows-guacamole:latest
 ```
-
-Then set that tag as the `rdp-tunnel` container image in your template.
-
-The templates in this repo currently point at an image in Crafting's internal
-dev account, which is only pullable from inside that account. You must publish
-your own copy and update the `image:` field before the template will run for you.
 
 The build is multi-stage: Maven compiles the Java tunnel, then it is layered
 onto `guacamole/guacd:1.5.4`. The first build takes a few minutes while Maven

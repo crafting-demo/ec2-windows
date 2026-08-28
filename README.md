@@ -31,10 +31,10 @@ This is the Windows counterpart to
 
 ## Quick start
 
-Read [the guide](docs/windows-in-crafting-sandbox.md). In short: build and
-publish the RDP image, fill in the `# <-- REPLACE` values in
-`.sandbox/template.yaml` (VPC, subnet, key pair, image), then create a sandbox
-from the template.
+Read [the guide](docs/windows-in-crafting-sandbox.md). In short: fill in the
+`# <-- REPLACE` values in `.sandbox/template.yaml` (VPC, subnet, key pair,
+secrets, egress CIDR), then create a sandbox from the template. The RDP image
+is already published.
 
 ## Requirements
 
@@ -42,4 +42,3 @@ from the template.
   groups.
 - An EC2 key pair, with its private key stored as a Crafting org secret. The VM's
   Administrator password is encrypted with this key and decrypted by Terraform.
-- A container registry your sandboxes can pull from, for the RDP image.

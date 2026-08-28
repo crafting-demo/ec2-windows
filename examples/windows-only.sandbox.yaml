@@ -25,7 +25,6 @@ endpoints:
 
 containers:
   - name: rdp-tunnel
-    # Crafting's public dev registry -- replace with your own published image.
     image: us-docker.pkg.dev/crafting-eng/pubdev/ec2-windows-guacamole:latest
     ports:
       - name: web
