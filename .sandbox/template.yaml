@@ -1,0 +1,122 @@
+overview: |
+  # Windows Development Sandbox
+
+  This sandbox provisions an EC2 Windows VM alongside your workspace.
+
+  - **Remote desktop**: open the `rdp` endpoint above
+  - **SSH**: `ssh Administrator@$(jq -r .public_dns /run/sandbox/fs/resources/windows/state)`
+  - **VM details**: click the `windows` resource
+
+  The VM is destroyed when the sandbox is suspended and recreated on resume.
+  Anything kept on the `D:` drive survives that cycle; the `C:` drive does not.
+
+endpoints:
+  # Only the tunnel's web port is exposed. Port 8081 configures the RDP target
+  # and has no authentication of its own, so it deliberately stays internal to
+  # the sandbox. This endpoint is protected by Crafting's endpoint auth.
+  - name: rdp
+    http:
+      routes:
+        - path_prefix: /
+          backend:
+            target: rdp-tunnel
+            port: web
+
+containers:
+  - name: rdp-tunnel
+    image: us-docker.pkg.dev/my-project/my-repo/ec2-windows-guacamole:latest  # <-- REPLACE with your published image
+    ports:
+      - name: web
+        port: 8080
+        protocol: HTTP/TCP
+      - name: config
+        port: 8081
+        protocol: HTTP/TCP
+    probes:
+      readiness:
+        - name: tunnel
+          http_get:
+            port: 8080
+            # "/" redirects, which a probe would treat as not-ready.
+            path: /index.html
+
+workspaces:
+  # Your own code. Nothing here is required by the Windows VM itself.
+  - name: dev
+    checkouts:
+      - path: my-app                                   # <-- REPLACE with your app directory name
+        repo:
+          git: https://github.com/myorg/my-app         # <-- REPLACE with your repo URL
+    wait_for:
+      - windows
+
+  # Runs Terraform and keeps the RDP tunnel pointed at the VM.
+  - name: provisioner
+    checkouts:
+      - path: ec2-windows
+        repo:
+          git: https://github.com/crafting-demo/ec2-windows  # <-- REPLACE with your fork
+        manifest:
+          overlays:
+            - inline:
+                daemons:
+                  rdp-params:
+                    run:
+                      # Waits for the `windows` resource state on its own, so
+                      # this needs no wait_for; the provisioner workspace is
+                      # what creates that resource, which would deadlock.
+                      # Running as a daemon means it also re-pushes after a
+                      # resume, when the VM comes back at a new address.
+                      cmd: ./scripts/push-rdp-params.sh --watch
+                      dir: ec2-windows
+                      env:
+                        - PARAMS_URL=http://rdp-tunnel:8081/params
+    env:
+      - AWS_CONFIG_FILE=/run/sandbox/fs/secrets/shared/aws-config  # <-- REPLACE with your AWS config secret
+
+resources:
+  - name: windows
+    brief: "Windows: {{output.public_dns}}"
+    details: |
+      **EC2 Windows VM**
+
+      - Public DNS: {{output.public_dns}}
+      - Public IP: {{output.public_ip}}
+      - Instance ID: {{output.instance_id}}
+      - Data volume: {{output.volume_id}} (persists across suspend/resume)
+
+      Open the `rdp` endpoint for a browser desktop, or connect over SSH:
+      ```
+      ssh Administrator@{{output.public_dns}}
+      ```
+
+      For a native RDP client, save this as an `.rdp` file:
+      ```
+      auto connect:i:1
+      full address:s:{{output.public_dns}}
+      username:s:Administrator
+      ```
+
+      The Administrator password is in the resource state file:
+      `jq -r .password /run/sandbox/fs/resources/windows/state`
+    terraform:
+      workspace: provisioner
+      dir: ec2-windows/terraform
+      output: output
+      save_state: true
+      run:
+        timeout: 30m0s
+        vars:
+          vpc_id: vpc-xxxxxxxx                          # <-- REPLACE
+          subnet_id: subnet-xxxxxxxx                    # <-- REPLACE with a public subnet
+          key_name: my-keypair                          # <-- REPLACE with your EC2 key pair name
+          keypair_file: /run/sandbox/fs/secrets/shared/ec2-keypair.pem  # <-- REPLACE with your key secret
+          allowed_cidrs: '["203.0.113.0/24"]'           # <-- REPLACE with your Crafting egress CIDR
+          instance_type: t3.large
+          data_volume_size: "100"
+      # Specifying on_suspend automatically enables on_resume (terraform apply
+      # with suspended=false), so on_resume is not a separate field.
+      on_suspend:
+        vars:
+          suspended: "true"
+      on_delete: {}

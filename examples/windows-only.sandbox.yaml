@@ -1,0 +1,88 @@
+# A minimal Windows sandbox: the VM and browser RDP, with no application
+# workspace. Useful as a disposable Windows desktop, for testing an AMI, or as a
+# starting point before wiring in your own code.
+#
+# Create with:  cs sandbox create -f examples/windows-only.sandbox.yaml NAME
+
+overview: |
+  # Windows Desktop
+
+  Open the `rdp` endpoint for a browser desktop.
+
+  SSH from the provisioner workspace:
+  ```
+  ssh Administrator@$(jq -r .public_dns /run/sandbox/fs/resources/windows/state)
+  ```
+
+endpoints:
+  - name: rdp
+    http:
+      routes:
+        - path_prefix: /
+          backend:
+            target: rdp-tunnel
+            port: web
+
+containers:
+  - name: rdp-tunnel
+    image: us-docker.pkg.dev/my-project/my-repo/ec2-windows-guacamole:latest  # <-- REPLACE
+    ports:
+      - name: web
+        port: 8080
+        protocol: HTTP/TCP
+      - name: config
+        port: 8081
+        protocol: HTTP/TCP
+    probes:
+      readiness:
+        - name: tunnel
+          http_get:
+            port: 8080
+            path: /index.html
+
+workspaces:
+  - name: provisioner
+    checkouts:
+      - path: ec2-windows
+        repo:
+          git: https://github.com/crafting-demo/ec2-windows  # <-- REPLACE with your fork
+        manifest:
+          overlays:
+            - inline:
+                daemons:
+                  rdp-params:
+                    run:
+                      cmd: ./scripts/push-rdp-params.sh --watch
+                      dir: ec2-windows
+                      env:
+                        - PARAMS_URL=http://rdp-tunnel:8081/params
+    env:
+      - AWS_CONFIG_FILE=/run/sandbox/fs/secrets/shared/aws-config  # <-- REPLACE
+
+resources:
+  - name: windows
+    brief: "Windows: {{output.public_dns}}"
+    details: |
+      **EC2 Windows VM**
+
+      - Public DNS: {{output.public_dns}}
+      - Instance ID: {{output.instance_id}}
+
+      Password: `jq -r .password /run/sandbox/fs/resources/windows/state`
+    terraform:
+      workspace: provisioner
+      dir: ec2-windows/terraform
+      output: output
+      save_state: true
+      run:
+        timeout: 30m0s
+        vars:
+          vpc_id: vpc-xxxxxxxx                          # <-- REPLACE
+          subnet_id: subnet-xxxxxxxx                    # <-- REPLACE
+          key_name: my-keypair                          # <-- REPLACE
+          keypair_file: /run/sandbox/fs/secrets/shared/ec2-keypair.pem  # <-- REPLACE
+          allowed_cidrs: '["203.0.113.0/24"]'           # <-- REPLACE
+      on_suspend:
+        vars:
+          suspended: "true"
+      on_delete: {}

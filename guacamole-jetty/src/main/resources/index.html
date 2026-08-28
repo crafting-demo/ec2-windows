@@ -1,0 +1,268 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+    <title>Guacamole Frontend</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .guac {
+            cursor: none;
+        }
+    </style>
+    <script type="text/javascript" src="guacamole-common-js/all.min.js"></script>
+</head>
+
+<body>
+    <script type="text/javascript"> /* <![CDATA[ */
+        document.addEventListener("DOMContentLoaded", () => {
+            const rc = document.body.getBoundingClientRect();
+
+            // Instantiate client, using an HTTP tunnel for communications.
+            const url = `rdp?width=${rc.width}&height=${rc.height}`;
+            const guac = new Guacamole.Client(
+                new Guacamole.WebSocketTunnel(url)
+            );
+
+            const elem = guac.getDisplay().getElement();
+            elem.classList.add("guac");
+            document.body.appendChild(elem);
+
+            guac.onstatechange = (clientState) => {
+                switch (clientState) {
+                    case 0:
+                        console.info("IDLE");
+                        break;
+                    case 1:
+                        console.info("CONNECTING");
+                        break;
+                    case 2:
+                        console.info("WAITING");
+                        break;
+                    case 3:
+                        console.info("CONNECTED");
+                        clipboard.setRemoteClipboard(guac);
+                        break;
+                    case 4:
+                        console.info("DISCONNECTING");
+                    case 5:
+                        console.info("DISCONNECTED");
+                        break;
+                }
+            };
+            clipboard.install(guac);
+
+            // Mouse
+            const mouse = new Guacamole.Mouse(elem);
+
+            mouse.onmousedown =
+                mouse.onmouseup =
+                mouse.onmousemove = (mouseState) => {
+                    guac.getDisplay().showCursor(true);
+                    guac.sendMouseState(mouseState);
+                };
+
+            mouse.onmouseout = () => {
+                guac.getDisplay().showCursor(false);
+            };
+
+            // Keyboard
+            const keyboard = new Guacamole.Keyboard(document);
+
+            keyboard.onkeydown = (keysym) => {
+                guac.sendKeyEvent(1, keysym);
+            };
+
+            keyboard.onkeyup = (keysym) => {
+                guac.sendKeyEvent(0, keysym);
+            };
+
+            // Error handler
+            guac.onerror = (error) => {
+                console.error(error);
+                alert(error?.message || error);
+            };
+
+            const debounce = (func, wait, options = {}) => {
+                let timeoutId;
+                let leadingExecuted = false;
+                const debouncedFunction = (...args) => {
+                    const shouldExecuteLeading = options.leading && !leadingExecuted;
+                    const shouldExecuteTrailing = !options.trailing || timeoutId === undefined;
+                    if (shouldExecuteLeading) {
+                        func.apply(this, args);
+                        leadingExecuted = true;
+                    }
+                    clearTimeout(timeoutId);
+                    timeoutId = setTimeout(() => {
+                        if (shouldExecuteTrailing) {
+                            func.apply(this, args);
+                            leadingExecuted = false;
+                        }
+                    }, wait);
+                };
+                debouncedFunction.cancel = () => {
+                    clearTimeout(timeoutId);
+                    leadingExecuted = false;
+                    timeoutId = undefined;
+                };
+                return debouncedFunction;
+            };
+
+            const observer = new ResizeObserver(
+                debounce((entries) => {
+                    window.requestAnimationFrame(() => {
+                        if (!entries.length) return;
+                        const rc = entries[0].contentRect;
+                        if (!rc.width || !rc.height) return;
+                        const width = Math.max(rc.width, 640);
+                        const height = Math.max(rc.height, 480);
+                        guac.sendSize(width, height);
+                    });
+                }, 1000, { leading: true })
+            );
+            observer.observe(document.body);
+
+            // Connect
+            guac.connect();
+
+            // Disconnect on close
+            window.onunload = () => {
+                clipboard.uninstall();
+                observer.disconnect();
+                guac.disconnect();
+            };
+        });
+
+        const clipboard = {
+            cache: undefined,
+
+            install(client) {
+                clipboard.getLocalClipboard().then((data) => {
+                    this.cache = data;
+                });
+
+                const updateFn = clipboard.update(client);
+                window.addEventListener("load", updateFn, true);
+                window.addEventListener("copy", updateFn);
+                window.addEventListener("cut", updateFn);
+
+                const focusListener = (e) => {
+                    if (e.target === window) {
+                        updateFn();
+                    }
+                };
+                window.addEventListener("focus", focusListener, true);
+
+                client.onclipboard = clipboard.onClipboard;
+
+                clipboard.uninstall = () => {
+                    window.removeEventListener("load", updateFn);
+                    window.removeEventListener("copy", updateFn);
+                    window.removeEventListener("cut", updateFn);
+                    window.removeEventListener("focus", focusListener);
+
+                    client.onclipboard = null;
+                };
+            },
+
+            uninstall() { },
+
+            update(client) {
+                return () => {
+                    clipboard.getLocalClipboard().then((data) => {
+                        clipboard.cache = data;
+                        clipboard.setRemoteClipboard(client);
+                    });
+                };
+            },
+
+            setRemoteClipboard(client) {
+                if (!clipboard.cache) {
+                    return;
+                }
+
+                let writer;
+
+                const stream = client.createClipboardStream(
+                    clipboard.cache.type,
+                    "clipboard"
+                );
+
+                if (typeof clipboard.cache.data === "string") {
+                    writer = new Guacamole.StringWriter(stream);
+                    writer.sendText(clipboard.cache.data);
+                    writer.sendEnd();
+                } else {
+                    writer = new Guacamole.BlobWriter(stream);
+                    writer.oncomplete = () => {
+                        writer.sendEnd();
+                    };
+                    writer.sendBlob(clipboard.cache.data);
+                }
+            },
+
+            async getLocalClipboard() {
+                if (navigator.clipboard && navigator.clipboard.readText) {
+                    try {
+                        const text = await navigator.clipboard.readText();
+                        return {
+                            type: "text/plain",
+                            data: text,
+                        };
+                    } catch (ex) {
+                        console.warn(ex);
+                    }
+                }
+                return Promise.resolve();
+            },
+
+            setLocalClipboard(data) {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    if (data.type === "text/plain") {
+                        return navigator.clipboard.writeText(data.data);
+                    }
+                }
+                return Promise.resolve();
+            },
+
+            onClipboard(stream, mimetype) {
+                let reader;
+
+                if (/^text\//.exec(mimetype)) {
+                    reader = new Guacamole.StringReader(stream);
+
+                    let data = "";
+                    reader.ontext = (text) => {
+                        data += text;
+                    };
+
+                    reader.onend = () => {
+                        clipboard.setLocalClipboard({
+                            type: mimetype,
+                            data: data,
+                        });
+                    };
+                } else {
+                    reader = new Guacamole.BlobReader(stream, mimetype);
+                    reader.onend = () => {
+                        clipboard.setLocalClipboard({
+                            type: mimetype,
+                            data: reader.getBlob(),
+                        });
+                    };
+                }
+            },
+        };
+
+        /* ]]> */</script>
+</body>
+
+</html>
