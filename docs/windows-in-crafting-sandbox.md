@@ -117,6 +117,10 @@ docker push YOUR_REGISTRY/ec2-windows-guacamole:latest
 
 Then set that tag as the `rdp-tunnel` container image in your template.
 
+The templates in this repo currently point at an image in Crafting's internal
+dev account, which is only pullable from inside that account. You must publish
+your own copy and update the `image:` field before the template will run for you.
+
 The build is multi-stage: Maven compiles the Java tunnel, then it is layered
 onto `guacamole/guacd:1.5.4`. The first build takes a few minutes while Maven
 downloads dependencies.

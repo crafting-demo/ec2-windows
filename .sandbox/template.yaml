@@ -24,7 +24,9 @@ endpoints:
 
 containers:
   - name: rdp-tunnel
-    image: us-docker.pkg.dev/my-project/my-repo/ec2-windows-guacamole:latest  # <-- REPLACE with your published image
+    # Internal Crafting test image. Customers must replace this with their own
+    # published image: this registry is not readable outside Crafting's dev account.
+    image: 926120211684.dkr.ecr.us-west-1.amazonaws.com/demo/ec2-windows-guacamole:latest
     ports:
       - name: web
         port: 8080

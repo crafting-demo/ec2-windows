@@ -25,7 +25,8 @@ endpoints:
 
 containers:
   - name: rdp-tunnel
-    image: us-docker.pkg.dev/my-project/my-repo/ec2-windows-guacamole:latest  # <-- REPLACE
+    # Internal Crafting test image -- replace with your own published image.
+    image: 926120211684.dkr.ecr.us-west-1.amazonaws.com/demo/ec2-windows-guacamole:latest
     ports:
       - name: web
         port: 8080
