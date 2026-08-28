@@ -48,6 +48,9 @@ workspaces:
       - path: hello                                    # <-- REPLACE with your app directory name
         repo:
           git: https://github.com/crafting-test1/hello.git  # <-- REPLACE with your repo URL
+    packages:                                          # <-- REPLACE with whatever your app builds with
+      - name: golang
+        version: "*"
     wait_for:
       - windows
 
@@ -69,7 +72,6 @@ workspaces:
                       # Running as a daemon means it also re-pushes after a
                       # resume, when the VM comes back at a new address.
                       cmd: ./scripts/push-rdp-params.sh --watch
-                      dir: ec2-windows
                       env:
                         - PARAMS_URL=http://rdp-tunnel:8081/params
     env:

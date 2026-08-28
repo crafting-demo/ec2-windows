@@ -46,7 +46,7 @@ workspaces:
     checkouts:
       - path: ec2-windows
         repo:
-          git: https://github.com/crafting-demo/ec2-windows  # <-- REPLACE with your fork
+          git: git@github.com:crafting-demo/ec2-windows.git  # <-- REPLACE with your fork (SSH form; the repo is private)
         manifest:
           overlays:
             - inline:
@@ -54,7 +54,6 @@ workspaces:
                   rdp-params:
                     run:
                       cmd: ./scripts/push-rdp-params.sh --watch
-                      dir: ec2-windows
                       env:
                         - PARAMS_URL=http://rdp-tunnel:8081/params
     env:
