@@ -46,9 +46,9 @@ workspaces:
   # Your own code. Nothing here is required by the Windows VM itself.
   - name: dev
     checkouts:
-      - path: sandbox                                  # <-- REPLACE with your app directory name
+      - path: hello                                    # <-- REPLACE with your app directory name
         repo:
-          git: https://github.com/crafting-demo/boutique.git  # <-- REPLACE with your repo URL
+          git: https://github.com/crafting-test1/hello.git  # <-- REPLACE with your repo URL
     wait_for:
       - windows
 
