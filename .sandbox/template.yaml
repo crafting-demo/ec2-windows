@@ -74,7 +74,7 @@ workspaces:
                       env:
                         - PARAMS_URL=http://rdp-tunnel:8081/params
     env:
-      - AWS_CONFIG_FILE=/run/sandbox/fs/secrets/shared/aws-config  # <-- REPLACE with your AWS config secret
+      - AWS_CONFIG_FILE=/run/sandbox/fs/secrets/shared/shared/aws-dev-config  # <-- REPLACE with your AWS config secret
 
 resources:
   - name: windows
@@ -109,11 +109,11 @@ resources:
       run:
         timeout: 30m0s
         vars:
-          vpc_id: vpc-xxxxxxxx                          # <-- REPLACE
-          subnet_id: subnet-xxxxxxxx                    # <-- REPLACE with a public subnet
-          key_name: my-keypair                          # <-- REPLACE with your EC2 key pair name
-          keypair_file: /run/sandbox/fs/secrets/shared/ec2-keypair.pem  # <-- REPLACE with your key secret
-          allowed_cidrs: '["203.0.113.0/24"]'           # <-- REPLACE with your Crafting egress CIDR
+          vpc_id: vpc-09771f31462e8c3cf                 # <-- REPLACE
+          subnet_id: subnet-0ba6e36eed1d3dfb3           # <-- REPLACE with a public subnet
+          key_name: crafting-shared                     # <-- REPLACE with your EC2 key pair name
+          keypair_file: /run/sandbox/fs/secrets/shared/shared/ec2-keypair.pem  # <-- REPLACE with your key secret
+          allowed_cidrs: '["35.230.72.252/32"]'         # <-- REPLACE with your Crafting egress CIDR
           instance_type: t3.large
           data_volume_size: "100"
       # Specifying on_suspend automatically enables on_resume (terraform apply
