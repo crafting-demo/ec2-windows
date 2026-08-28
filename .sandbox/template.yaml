@@ -57,7 +57,7 @@ workspaces:
     checkouts:
       - path: ec2-windows
         repo:
-          git: https://github.com/crafting-demo/ec2-windows  # <-- REPLACE with your fork
+          git: git@github.com:crafting-demo/ec2-windows.git  # <-- REPLACE with your fork (SSH form; the repo is private)
         manifest:
           overlays:
             - inline:
